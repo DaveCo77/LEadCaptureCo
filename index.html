@@ -62,9 +62,8 @@
         button:disabled { background: #444; cursor: not-allowed; transform: none; }
 
         /* --- UI STATES --- */
-        .success-message, #error-screen { display: none; color: #fff; animation: fadeIn 0.5s ease; }
+        .success-message { display: none; color: #fff; animation: fadeIn 0.5s ease; }
         .success-icon { font-size: 50px; color: #28a745; margin-bottom: 20px; }
-        #error-screen h1 { color: #ff3333; font-size: 24px;}
         
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
@@ -76,12 +75,7 @@
 
 <div class="container">
     
-    <div id="error-screen">
-        <h1>⚠️ INVALID EVENT LINK</h1>
-        <p style="color:#aaa;">Please use the secure event link provided by the organizer to access this check-in page.</p>
-    </div>
-
-    <div id="formSection" style="display:none;">
+    <div id="formSection">
         <h1>WELCOME</h1>
         <p class="subtitle">PLEASE REGISTER BELOW</p>
 
@@ -125,19 +119,12 @@ const firebaseConfig = {
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // GET EVENT ID FROM URL
+    // GET EVENT ID FROM URL OR DEFAULT TO 'demo_sandbox'
     const urlParams = new URLSearchParams(window.location.search);
-    const eventId = urlParams.get('event');
-
-    if (!eventId) {
-        document.getElementById('error-screen').style.display = 'block';
-    } else {
-        document.getElementById('formSection').style.display = 'block';
-    }
+    const eventId = urlParams.get('event') || 'demo_sandbox';
 
     document.getElementById('leadForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        if(!eventId) return;
         
         const btn = document.getElementById('submitBtn');
         const name = document.getElementById('name').value;
@@ -146,7 +133,7 @@ const firebaseConfig = {
         btn.innerText = "SAVING...";
         btn.disabled = true;
 
-        // DYNAMIC ROUTING: Save to this specific event's database node
+        // DYNAMIC ROUTING: Saves to the URL parameter or the 'demo_sandbox' fallback
         db.collection("events").doc(eventId).collection("leads").add({
             name: name,
             email: email,
