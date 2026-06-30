@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Expo Command Terminal - POWERED BY DAVE-CO</title>
+    <style>
+        :root { --term-color: #00ff41; --term-dim: #004d13; --bg-color: #050505; }
+
+        body {
+            background-color: var(--bg-color); color: var(--term-color);
+            font-family: "Courier New", Courier, monospace; margin: 0; padding: 20px;
+            height: 100vh; overflow: hidden; text-transform: uppercase; box-sizing: border-box;
+        }
+
+        body::before {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02));
+            z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+        
+        .scanline {
+            width: 100%; height: 100px; z-index: 10;
+            background: linear-gradient(0deg, rgba(0,0,0,0) 0%, rgba(0, 255, 65, 0.1) 50%, rgba(0,0,0,0) 100%);
+            opacity: 0.1; position: absolute; bottom: 100%; animation: scanline 10s linear infinite; pointer-events: none;
+        }
+
+        @keyframes scanline { 0% { bottom: 100%; } 100% { bottom: -100px; } }
+
+        .terminal-container { border: 2px solid var(--term-color); height: 95%; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 0 20px var(--term-dim), inset 0 0 20px var(--term-dim); position: relative; z-index: 1; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--term-color); padding-bottom: 10px; margin-bottom: 20px; }
+        h1 { margin: 0; font-size: 24px; text-shadow: 0 0 5px var(--term-color); }
+        .status { font-weight: bold; animation: blink 2s infinite; }
+
+        .auth-box { margin-bottom: 20px; display: flex; gap: 10px; }
+        input[type="text"] { background: #000; border: 1px solid var(--term-color); color: var(--term-color); padding: 8px; font-family: inherit; font-size: 16px; width: 300px; outline: none;}
+        
+        .stats-box { margin-bottom: 20px; font-size: 18px; display: none; }
+        .data-viewport { flex-grow: 1; overflow-y: auto; border: 1px solid var(--term-dim); padding: 10px; display: none; }
+        .data-viewport::-webkit-scrollbar { width: 10px; }
+        .data-viewport::-webkit-scrollbar-track { background: var(--bg-color); }
+        .data-viewport::-webkit-scrollbar-thumb { background: var(--term-color); border: 1px solid var(--bg-color); }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; border-bottom: 1px dashed var(--term-color); padding: 5px; }
+        td { padding: 8px 5px; color: #aaffb8; font-size: 14px; }
+        tr:hover { background-color: var(--term-dim); color: white; }
+
+        .controls { margin-top: 20px; display: none; gap: 20px; }
+        button { background: transparent; color: var(--term-color); border: 2px solid var(--term-color); padding: 10px 20px; font-family: inherit; font-size: 16px; cursor: pointer; text-transform: uppercase; box-shadow: 0 0 5px var(--term-dim); transition: all 0.2s; }
+        button:hover { background: var(--term-color); color: black; box-shadow: 0 0 15px var(--term-color); }
+
+        .delete-btn { border: none; color: var(--term-dim); cursor: pointer; font-weight: bold; padding:0;}
+        .delete-btn:hover { color: red; text-decoration: underline; background: transparent; box-shadow:none;}
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+
+    <div class="scanline"></div>
+
+    <div class="terminal-container">
+        <div class="header">
+            <h1>DAVE-CO EXPO TERMINAL_V2.0</h1>
+            <div class="status" id="sysStatus">SYSTEM IDLE // AWAITING SECURE LINK</div>
+        </div>
+
+        <div class="auth-box" id="authBox">
+            <input type="text" id="eventInput" placeholder="ENTER EVENT UUID..." autocomplete="off">
+            <button onclick="connectEvent()">CONNECT</button>
+        </div>
+
+        <div class="stats-box" id="statsBox">
+            > SECURE LINK ESTABLISHED: [<span id="displayId" style="color:#fff;"></span>]<br>
+            > TOTAL LEADS ACQUIRED: <span id="count" style="color:#fff;">0</span>
+        </div>
+
+        <div class="data-viewport" id="dataView">
+            <table id="leadTable">
+                <thead>
+                    <tr>
+                        <th>TIME</th>
+                        <th>NAME</th>
+                        <th>EMAIL</th>
+                        <th>CMD</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="4">AWAITING DATA...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="controls" id="controlsBox">
+            <button onclick="downloadData()">[ EXPORT_TO_EXCEL ]</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBR-uD3eGhSkAFJSikQ6zSBGD_wspb-Aqo",
+            authDomain: "aime-marketing-app.firebaseapp.com",
+            projectId: "aime-marketing-app",
+            storageBucket: "aime-marketing-app.firebasestorage.app",
+            messagingSenderId: "600284637753",
+            appId: "1:600284637753:web:daec455bb50dc126fc7be8",
+            measurementId: "G-7B939E4Z7Z"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        let currentEventId = null;
+
+        // CHECK URL PARAMS ON LOAD
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.get('event')) {
+            document.getElementById('eventInput').value = urlParams.get('event');
+            connectEvent();
+        }
+
+        function connectEvent() {
+            const inputVal = document.getElementById('eventInput').value.trim();
+            if(!inputVal) return;
+            
+            currentEventId = inputVal;
+            
+            // Update UI
+            document.getElementById('authBox').style.display = 'none';
+            document.getElementById('sysStatus').innerText = "SYSTEM ONLINE // RECEIVING DATA";
+            document.getElementById('displayId').innerText = currentEventId;
+            
+            document.getElementById('statsBox').style.display = 'block';
+            document.getElementById('dataView').style.display = 'block';
+            document.getElementById('controlsBox').style.display = 'flex';
+
+            // ATTACH REAL-TIME LISTENER TO ISOLATED EVENT NODE
+            db.collection("events").doc(currentEventId).collection("leads")
+              .orderBy("timestamp", "desc")
+              .onSnapshot((snapshot) => {
+                  const tableBody = document.getElementById("tableBody");
+                  document.getElementById("count").innerText = snapshot.size;
+                  
+                  tableBody.innerHTML = ""; 
+
+                  if (snapshot.empty) {
+                      tableBody.innerHTML = "<tr><td colspan='4'>NO DATA FOUND IN SECTOR 7G</td></tr>";
+                      return;
+                  }
+
+                  snapshot.forEach((doc) => {
+                      const data = doc.data();
+                      const date = data.timestamp ? data.timestamp.toDate().toLocaleTimeString() : "PENDING";
+                      
+                      const row = `
+                          <tr>
+                              <td>${date}</td>
+                              <td>${data.name}</td>
+                              <td>${data.email}</td>
+                              <td><button class="delete-btn" onclick="deleteEntry('${doc.id}')">[X]</button></td>
+                          </tr>
+                      `;
+                      tableBody.innerHTML += row;
+                  });
+              });
+        }
+
+        function deleteEntry(id) {
+            if(!currentEventId) return;
+            if(confirm("CONFIRM DELETION? This action cannot be undone.")) {
+                db.collection("events").doc(currentEventId).collection("leads").doc(id).delete();
+            }
+        }
+
+        async function downloadData() {
+            if(!currentEventId) return;
+            const snapshot = await db.collection("events").doc(currentEventId).collection("leads").orderBy("timestamp", "desc").get();
+            
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Name,Email,Date\n"; 
+
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const date = data.timestamp ? data.timestamp.toDate().toLocaleString() : "";
+                const name = data.name.replace(/,/g, ""); 
+                const email = data.email.replace(/,/g, "");
+                csvContent += `${name},${email},"${date}"\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `DAVECO_LEADS_${currentEventId}.csv`);
+            document.body.appendChild(link);
+            link.click();
+        }
+    </script>
+
+</body>
+</html>
