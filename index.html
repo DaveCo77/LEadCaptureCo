@@ -102,22 +102,23 @@
     </div>
 </div>
 
+<!-- CHANGED TO REALTIME DATABASE COMPAT -->
 <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
 
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyBR-uD3eGhSkAFJSikQ6zSBGD_wspb-Aqo",
   authDomain: "aime-marketing-app.firebaseapp.com",
+  databaseURL: "https://aime-marketing-app-default-rtdb.firebaseio.com", // Ensure this matches your Firebase Realtime DB URL
   projectId: "aime-marketing-app",
   storageBucket: "aime-marketing-app.firebasestorage.app",
   messagingSenderId: "600284637753",
-  appId: "1:600284637753:web:daec455bb50dc126fc7be8",
-  measurementId: "G-7B939E4Z7Z"
+  appId: "1:600284637753:web:daec455bb50dc126fc7be8"
 };
 
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    const db = firebase.database(); // Switched to RTDB
 
     // GET EVENT ID FROM URL OR DEFAULT TO 'demo_sandbox'
     const urlParams = new URLSearchParams(window.location.search);
@@ -133,11 +134,11 @@ const firebaseConfig = {
         btn.innerText = "SAVING...";
         btn.disabled = true;
 
-        // DYNAMIC ROUTING: Saves to the URL parameter or the 'demo_sandbox' fallback
-        db.collection("events").doc(eventId).collection("leads").add({
+        // RTDB Syntax: .push() creates a unique ID for the new lead
+        db.ref("events/" + eventId + "/leads").push({
             name: name,
             email: email,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            timestamp: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
             document.getElementById('formSection').style.display = 'none';
