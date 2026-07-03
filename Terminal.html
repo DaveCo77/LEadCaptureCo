@@ -96,22 +96,23 @@
         </div>
     </div>
 
+    <!-- CHANGED TO REALTIME DATABASE COMPAT -->
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
 
     <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyBR-uD3eGhSkAFJSikQ6zSBGD_wspb-Aqo",
-  authDomain: "aime-marketing-app.firebaseapp.com",
-  projectId: "aime-marketing-app",
-  storageBucket: "aime-marketing-app.firebasestorage.app",
-  messagingSenderId: "600284637753",
-  appId: "1:600284637753:web:daec455bb50dc126fc7be8",
-  measurementId: "G-7B939E4Z7Z"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyBR-uD3eGhSkAFJSikQ6zSBGD_wspb-Aqo",
+            authDomain: "aime-marketing-app.firebaseapp.com",
+            databaseURL: "https://aime-marketing-app-default-rtdb.firebaseio.com", // Ensure this matches your Firebase Realtime DB URL
+            projectId: "aime-marketing-app",
+            storageBucket: "aime-marketing-app.firebasestorage.app",
+            messagingSenderId: "600284637753",
+            appId: "1:600284637753:web:daec455bb50dc126fc7be8"
+        };
 
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+        const db = firebase.database(); // Switched to RTDB
         let currentEventId = null;
 
         // CHECK URL PARAMS ON LOAD
@@ -136,65 +137,81 @@ const firebaseConfig = {
             document.getElementById('dataView').style.display = 'block';
             document.getElementById('controlsBox').style.display = 'flex';
 
-            // ATTACH REAL-TIME LISTENER TO ISOLATED EVENT NODE
-            db.collection("events").doc(currentEventId).collection("leads")
-              .orderBy("timestamp", "desc")
-              .onSnapshot((snapshot) => {
-                  const tableBody = document.getElementById("tableBody");
-                  document.getElementById("count").innerText = snapshot.size;
-                  
-                  tableBody.innerHTML = ""; 
+            // ATTACH REAL-TIME LISTENER TO ISOLATED EVENT NODE (RTDB SYNTAX)
+            db.ref("events/" + currentEventId + "/leads").on('value', (snapshot) => {
+                const tableBody = document.getElementById("tableBody");
+                tableBody.innerHTML = ""; 
 
-                  if (snapshot.empty) {
-                      tableBody.innerHTML = "<tr><td colspan='4'>NO DATA FOUND IN SECTOR 7G</td></tr>";
-                      return;
-                  }
+                if (!snapshot.exists()) {
+                    tableBody.innerHTML = "<tr><td colspan='4'>NO DATA FOUND IN SECTOR 7G</td></tr>";
+                    document.getElementById("count").innerText = "0";
+                    return;
+                }
 
-                  snapshot.forEach((doc) => {
-                      const data = doc.data();
-                      const date = data.timestamp ? data.timestamp.toDate().toLocaleTimeString() : "PENDING";
-                      
-                      const row = `
-                          <tr>
-                              <td>${date}</td>
-                              <td>${data.name}</td>
-                              <td>${data.email}</td>
-                              <td><button class="delete-btn" onclick="deleteEntry('${doc.id}')">[X]</button></td>
-                          </tr>
-                      `;
-                      tableBody.innerHTML += row;
-                  });
-              });
+                // Push all leads into an array so we can reverse them (newest at the top)
+                let leadsArray = [];
+                snapshot.forEach((childSnapshot) => {
+                    let lead = childSnapshot.val();
+                    lead.id = childSnapshot.key;
+                    leadsArray.push(lead);
+                });
+                leadsArray.reverse();
+
+                document.getElementById("count").innerText = leadsArray.length;
+
+                leadsArray.forEach((data) => {
+                    const date = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : "PENDING";
+                    
+                    const row = `
+                        <tr>
+                            <td>${date}</td>
+                            <td>${data.name}</td>
+                            <td>${data.email}</td>
+                            <td><button class="delete-btn" onclick="deleteEntry('${data.id}')">[X]</button></td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            });
         }
 
         function deleteEntry(id) {
             if(!currentEventId) return;
             if(confirm("CONFIRM DELETION? This action cannot be undone.")) {
-                db.collection("events").doc(currentEventId).collection("leads").doc(id).delete();
+                db.ref("events/" + currentEventId + "/leads/" + id).remove();
             }
         }
 
-        async function downloadData() {
+        function downloadData() {
             if(!currentEventId) return;
-            const snapshot = await db.collection("events").doc(currentEventId).collection("leads").orderBy("timestamp", "desc").get();
             
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Name,Email,Date\n"; 
+            // Fetch once for export
+            db.ref("events/" + currentEventId + "/leads").once('value').then((snapshot) => {
+                let csvContent = "data:text/csv;charset=utf-8,";
+                csvContent += "Name,Email,Date\n"; 
 
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                const date = data.timestamp ? data.timestamp.toDate().toLocaleString() : "";
-                const name = data.name.replace(/,/g, ""); 
-                const email = data.email.replace(/,/g, "");
-                csvContent += `${name},${email},"${date}"\n`;
+                if (snapshot.exists()) {
+                    let leadsArray = [];
+                    snapshot.forEach((childSnapshot) => {
+                        leadsArray.push(childSnapshot.val());
+                    });
+                    leadsArray.reverse(); // Match UI order
+
+                    leadsArray.forEach(data => {
+                        const date = data.timestamp ? new Date(data.timestamp).toLocaleString() : "";
+                        const name = data.name ? data.name.replace(/,/g, "") : ""; 
+                        const email = data.email ? data.email.replace(/,/g, "") : "";
+                        csvContent += `${name},${email},"${date}"\n`;
+                    });
+                }
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `DAVECO_LEADS_${currentEventId}.csv`);
+                document.body.appendChild(link);
+                link.click();
             });
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `DAVECO_LEADS_${currentEventId}.csv`);
-            document.body.appendChild(link);
-            link.click();
         }
     </script>
 
