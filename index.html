@@ -22,6 +22,29 @@
             align-items: center; 
             min-height: 100vh; 
             color: var(--text-color);
+            overflow: hidden; /* prevents scrolling if watermark stretches */
+        }
+
+        /* --- THE WATERMARK --- */
+        .watermark-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; /* Crucial: lets people click through it */
+            z-index: 9999;
+            display: none; /* Hidden by default until DB confirms it's free */
+            overflow: hidden;
+        }
+
+        .wm-text {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 12vw;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.05); /* Very faint white */
+            white-space: nowrap;
+            user-select: none;
+            letter-spacing: 5px;
         }
 
         /* --- THE CARD (Glassmorphism) --- */
@@ -36,6 +59,8 @@
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5); 
             border: 1px solid rgba(255, 255, 255, 0.1);
             text-align: center;
+            position: relative;
+            z-index: 10;
         }
 
         h1 { margin: 0 0 10px 0; font-size: 32px; letter-spacing: 1px; font-weight: 700; text-transform: uppercase;}
@@ -73,6 +98,11 @@
 </head>
 <body>
 
+<!-- WATERMARK OVERLAY -->
+<div id="watermark" class="watermark-overlay">
+    <div class="wm-text">TRIAL VERSION</div>
+</div>
+
 <div class="container">
     
     <div id="formSection">
@@ -102,7 +132,6 @@
     </div>
 </div>
 
-<!-- CHANGED TO REALTIME DATABASE COMPAT -->
 <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
 
@@ -110,7 +139,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyBR-uD3eGhSkAFJSikQ6zSBGD_wspb-Aqo",
   authDomain: "aime-marketing-app.firebaseapp.com",
-  databaseURL: "https://aime-marketing-app-default-rtdb.asia-southeast1.firebasedatabase.app/", // Ensure this matches your Firebase Realtime DB URL
+  databaseURL: "https://aime-marketing-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
   projectId: "aime-marketing-app",
   storageBucket: "aime-marketing-app.firebasestorage.app",
   messagingSenderId: "600284637753",
@@ -118,11 +147,18 @@ const firebaseConfig = {
 };
 
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database(); // Switched to RTDB
+    const db = firebase.database(); 
 
     // GET EVENT ID FROM URL OR DEFAULT TO 'demo_sandbox'
     const urlParams = new URLSearchParams(window.location.search);
     const eventId = urlParams.get('event') || 'demo_sandbox';
+
+    // CHECK DATABASE TIER & APPLY WATERMARK
+    db.ref("events/" + eventId + "/status").once('value').then((snapshot) => {
+        if (snapshot.val() === "free" || eventId === "demo_sandbox") {
+            document.getElementById('watermark').style.display = 'block';
+        }
+    });
 
     document.getElementById('leadForm').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -134,7 +170,6 @@ const firebaseConfig = {
         btn.innerText = "SAVING...";
         btn.disabled = true;
 
-        // RTDB Syntax: .push() creates a unique ID for the new lead
         db.ref("events/" + eventId + "/leads").push({
             name: name,
             email: email,
