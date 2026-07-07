@@ -139,7 +139,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyBR-uD3eGhSkAFJSikQ6zSBGD_wspb-Aqo",
   authDomain: "aime-marketing-app.firebaseapp.com",
-  databaseURL: "https://aime-marketing-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
+  databaseURL: "https://aime-marketing-app-default-rtdb.asia-southeast1.firebasedatabase.app/",
   projectId: "aime-marketing-app",
   storageBucket: "aime-marketing-app.firebasestorage.app",
   messagingSenderId: "600284637753",
@@ -158,6 +158,8 @@ const firebaseConfig = {
         if (snapshot.val() === "free" || eventId === "demo_sandbox") {
             document.getElementById('watermark').style.display = 'block';
         }
+    }).catch((error) => {
+        console.warn("Could not read tier status:", error);
     });
 
     document.getElementById('leadForm').addEventListener('submit', function(e) {
