@@ -123,31 +123,68 @@
         }
 
         function connectEvent() {
-            const inputVal = document.getElementById('eventInput').value.trim();
-            if(!inputVal) return;
-            
-            currentEventId = inputVal;
-            
-            // Update UI
-            document.getElementById('authBox').style.display = 'none';
-            document.getElementById('sysStatus').innerText = "SYSTEM ONLINE // RECEIVING DATA";
-            document.getElementById('displayId').innerText = currentEventId;
-            
-            document.getElementById('statsBox').style.display = 'block';
-            document.getElementById('dataView').style.display = 'block';
-            document.getElementById('controlsBox').style.display = 'flex';
+    const inputVal = document.getElementById('eventInput').value.trim();
+    if(!inputVal) return;
+    
+    currentEventId = inputVal;
+    
+    // Update UI
+    document.getElementById('authBox').style.display = 'none';
+    document.getElementById('sysStatus').innerText = "SYSTEM ONLINE // RECEIVING DATA";
+    document.getElementById('displayId').innerText = currentEventId;
+    
+    document.getElementById('statsBox').style.display = 'block';
+    document.getElementById('dataView').style.display = 'block';
+    document.getElementById('controlsBox').style.display = 'flex';
 
-            // ATTACH REAL-TIME LISTENER TO ISOLATED EVENT NODE (RTDB SYNTAX)
-            db.ref("events/" + currentEventId + "/leads").on('value', (snapshot) => {
-                const tableBody = document.getElementById("tableBody");
-                tableBody.innerHTML = ""; 
+    // 1. CHECK THE TIER STATUS TO LOCK THE EXPORT BUTTON
+    db.ref("events/" + currentEventId + "/status").once('value').then((snapshot) => {
+        const exportBtn = document.querySelector('.controls button');
+        if (snapshot.val() === "free" || currentEventId === "demo_sandbox") {
+            exportBtn.innerText = "[ EXPORT LOCKED - UPGRADE TO PRO ]";
+            exportBtn.style.color = "#444";
+            exportBtn.style.borderColor = "#444";
+            exportBtn.style.cursor = "not-allowed";
+            // Overwrite the click function so they can't download
+            exportBtn.onclick = () => window.open('https://buy.stripe.com/eVq14h1yt2595on2i1bwk03', '_blank');
+        }
+    });
 
-                if (!snapshot.exists()) {
-                    tableBody.innerHTML = "<tr><td colspan='4'>No Data Received</td></tr>";
-                    document.getElementById("count").innerText = "0";
-                    return;
-                }
+    // 2. ATTACH REAL-TIME LISTENER FOR INCOMING LEADS
+    db.ref("events/" + currentEventId + "/leads").on('value', (snapshot) => {
+        const tableBody = document.getElementById("tableBody");
+        tableBody.innerHTML = ""; 
 
+        if (!snapshot.exists()) {
+            tableBody.innerHTML = "<tr><td colspan='4'>No Data Received</td></tr>";
+            document.getElementById("count").innerText = "0";
+            return;
+        }
+
+        let leadsArray = [];
+        snapshot.forEach((childSnapshot) => {
+            let lead = childSnapshot.val();
+            lead.id = childSnapshot.key;
+            leadsArray.push(lead);
+        });
+        leadsArray.reverse();
+
+        document.getElementById("count").innerText = leadsArray.length;
+
+        leadsArray.forEach((data) => {
+            const date = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : "PENDING";
+            const row = `
+                <tr>
+                    <td>${date}</td>
+                    <td>${data.name}</td>
+                    <td>${data.email}</td>
+                    <td><button class="delete-btn" onclick="deleteEntry('${data.id}')">[X]</button></td>
+                </tr>
+            `;
+            tableBody.innerHTML += row;
+        });
+    });
+}
                 // Push all leads into an array so we can reverse them (newest at the top)
                 let leadsArray = [];
                 snapshot.forEach((childSnapshot) => {
