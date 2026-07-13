@@ -92,7 +92,7 @@
         </div>
 
         <div class="controls" id="controlsBox">
-            <button onclick="downloadData()">[ EXPORT_TO_EXCEL ]</button>
+            <button id="exportBtn" onclick="downloadData()">[ EXPORT_TO_EXCEL ]</button>
         </div>
     </div>
 
@@ -104,7 +104,7 @@
         const firebaseConfig = {
             apiKey: "AIzaSyBR-uD3eGhSkAFJSikQ6zSBGD_wspb-Aqo",
             authDomain: "aime-marketing-app.firebaseapp.com",
-            databaseURL: "https://aime-marketing-app-default-rtdb.asia-southeast1.firebasedatabase.app/", // Ensure this matches your Firebase Realtime DB URL
+            databaseURL: "https://aime-marketing-app-default-rtdb.asia-southeast1.firebasedatabase.app/",
             projectId: "aime-marketing-app",
             storageBucket: "aime-marketing-app.firebasestorage.app",
             messagingSenderId: "600284637753",
@@ -112,7 +112,7 @@
         };
 
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.database(); // Switched to RTDB
+        const db = firebase.database(); 
         let currentEventId = null;
 
         // CHECK URL PARAMS ON LOAD
@@ -123,82 +123,65 @@
         }
 
         function connectEvent() {
-    const inputVal = document.getElementById('eventInput').value.trim();
-    if(!inputVal) return;
-    
-    currentEventId = inputVal;
-    
-    // Update UI
-    document.getElementById('authBox').style.display = 'none';
-    document.getElementById('sysStatus').innerText = "SYSTEM ONLINE // RECEIVING DATA";
-    document.getElementById('displayId').innerText = currentEventId;
-    
-    document.getElementById('statsBox').style.display = 'block';
-    document.getElementById('dataView').style.display = 'block';
-    document.getElementById('controlsBox').style.display = 'flex';
+            const inputVal = document.getElementById('eventInput').value.trim();
+            if(!inputVal) return;
+            
+            currentEventId = inputVal;
+            
+            // Update UI
+            document.getElementById('authBox').style.display = 'none';
+            document.getElementById('sysStatus').innerText = "SYSTEM ONLINE // RECEIVING DATA";
+            document.getElementById('displayId').innerText = currentEventId;
+            
+            document.getElementById('statsBox').style.display = 'block';
+            document.getElementById('dataView').style.display = 'block';
+            document.getElementById('controlsBox').style.display = 'flex';
 
-    // 1. CHECK THE TIER STATUS TO LOCK THE EXPORT BUTTON
-    db.ref("events/" + currentEventId + "/status").once('value').then((snapshot) => {
-        const exportBtn = document.querySelector('.controls button');
-        if (snapshot.val() === "free" || currentEventId === "demo_sandbox") {
-            exportBtn.innerText = "[ EXPORT LOCKED - UPGRADE TO PRO ]";
-            exportBtn.style.color = "#444";
-            exportBtn.style.borderColor = "#444";
-            exportBtn.style.cursor = "not-allowed";
-            // Overwrite the click function so they can't download
-            exportBtn.onclick = () => window.open('https://buy.stripe.com/eVq14h1yt2595on2i1bwk03', '_blank');
-        }
-    });
+            // 1. CHECK THE TIER STATUS TO LOCK OR UNLOCK THE EXPORT BUTTON
+            db.ref("events/" + currentEventId + "/status").once('value').then((snapshot) => {
+                const exportBtn = document.getElementById('exportBtn');
+                if (snapshot.val() === "free" || currentEventId === "demo_sandbox") {
+                    exportBtn.innerText = "[ EXPORT LOCKED - UPGRADE TO PRO ]";
+                    exportBtn.style.color = "#444";
+                    exportBtn.style.borderColor = "#444";
+                    exportBtn.style.cursor = "not-allowed";
+                    // Overwrite the click function so they get sent to Stripe instead
+                    exportBtn.onclick = () => window.open('https://buy.stripe.com/cNi4gt2CxdNR6sr2i1bwk05', '_blank');
+                } else {
+                    // Reset styling and attach actual download function if paid
+                    exportBtn.innerText = "[ EXPORT_TO_EXCEL ]";
+                    exportBtn.style.color = "";
+                    exportBtn.style.borderColor = "";
+                    exportBtn.style.cursor = "pointer";
+                    exportBtn.onclick = downloadData;
+                }
+            });
 
-    // 2. ATTACH REAL-TIME LISTENER FOR INCOMING LEADS
-    db.ref("events/" + currentEventId + "/leads").on('value', (snapshot) => {
-        const tableBody = document.getElementById("tableBody");
-        tableBody.innerHTML = ""; 
+            // 2. ATTACH REAL-TIME LISTENER FOR INCOMING LEADS
+            db.ref("events/" + currentEventId + "/leads").on('value', (snapshot) => {
+                const tableBody = document.getElementById("tableBody");
+                tableBody.innerHTML = ""; 
 
-        if (!snapshot.exists()) {
-            tableBody.innerHTML = "<tr><td colspan='4'>No Data Received</td></tr>";
-            document.getElementById("count").innerText = "0";
-            return;
-        }
+                if (!snapshot.exists()) {
+                    tableBody.innerHTML = "<tr><td colspan='4'>No Data Received</td></tr>";
+                    document.getElementById("count").innerText = "0";
+                    return;
+                }
 
-        let leadsArray = [];
-        snapshot.forEach((childSnapshot) => {
-            let lead = childSnapshot.val();
-            lead.id = childSnapshot.key;
-            leadsArray.push(lead);
-        });
-        leadsArray.reverse();
-
-        document.getElementById("count").innerText = leadsArray.length;
-
-        leadsArray.forEach((data) => {
-            const date = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : "PENDING";
-            const row = `
-                <tr>
-                    <td>${date}</td>
-                    <td>${data.name}</td>
-                    <td>${data.email}</td>
-                    <td><button class="delete-btn" onclick="deleteEntry('${data.id}')">[X]</button></td>
-                </tr>
-            `;
-            tableBody.innerHTML += row;
-        });
-    });
-}
-                // Push all leads into an array so we can reverse them (newest at the top)
                 let leadsArray = [];
                 snapshot.forEach((childSnapshot) => {
                     let lead = childSnapshot.val();
                     lead.id = childSnapshot.key;
                     leadsArray.push(lead);
                 });
+                
+                // Push all leads into an array so we can reverse them (newest at the top)
                 leadsArray.reverse();
 
                 document.getElementById("count").innerText = leadsArray.length;
 
                 leadsArray.forEach((data) => {
                     const date = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : "PENDING";
-                    
                     const row = `
                         <tr>
                             <td>${date}</td>
